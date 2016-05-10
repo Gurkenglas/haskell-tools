@@ -83,9 +83,10 @@ trfModule = trfLocCorrect (\sr -> combineSrcSpans sr <$> (uniqueTokenAnywhere An
        
 trfModuleRename :: Module -> Ann AST.Module RangeInfo -> (HsGroup Name, [LImportDecl Name], Maybe [LIE Name], Maybe LHsDocString) -> Located (HsModule RdrName) -> Trf (Ann AST.Module RangeWithName)
 trfModuleRename mod rangeMod (gr,imports,exps,_) 
-  = addModuleInfo mod <=< (trfLocCorrect (\sr -> combineSrcSpans sr <$> (uniqueTokenAnywhere AnnEofPos)) $ 
+  = trace ("\n### " ++ show splices) $
+     replaceSplices <=< addModuleInfo mod <=< (trfLocCorrect (\sr -> combineSrcSpans sr <$> (uniqueTokenAnywhere AnnEofPos)) $ 
       \hsMod@(HsModule name exports _ decls deprec haddock) -> 
-        setOriginalNames originalNames
+        setOriginalNames originalNames 
           $ AST.Module <$> trfPragmas deprec haddock
                        <*> trfModuleHead name (case (exports, exps) of (Just (L l _), Just ie) -> Just (L l ie)
                                                                        _                       -> Nothing)
@@ -97,6 +98,28 @@ trfModuleRename mod rangeMod (gr,imports,exps,_)
         originalNames = Map.fromList $ catMaybes $ map getSourceAndInfo (rangeMod ^? biplateRef) 
         getSourceAndInfo :: Ann AST.SimpleName RangeInfo -> Maybe (SrcSpan, RdrName)
         getSourceAndInfo n = (,) <$> (n ^? annotation&sourceInfo&nodeSpan) <*> (n ^? semantics&nameInfo)
+
+        replaceSplices = if not (Map.null splices) then replaceExprsWithSplices <=< replacePatternsWithSplices 
+                                                          <=< replaceTypesWithSplices <=< replaceDeclsWithSplices
+                                                   else pure
+        replaceExprsWithSplices = biplateRef !~ insertSplices (copyAnnot AST.Splice . pure)
+        replacePatternsWithSplices = biplateRef !~ insertSplices (copyAnnot AST.SplicePat . pure)
+        replaceTypesWithSplices = biplateRef !~ insertSplices (copyAnnot AST.TySplice . pure)
+        replaceDeclsWithSplices = biplateRef !~ insertSplices (copyAnnot AST.SpliceDecl . pure)
+
+        insertSplices :: (Ann AST.Splice RangeWithName -> Trf (Ann elem RangeWithName)) -> Ann elem RangeWithName -> Trf (Ann elem RangeWithName)
+        insertSplices f e = trace ("\n!!! " ++ show (maybe Nothing Just (e ^? annotation&sourceInfo&nodeSpan))) $ 
+                            case (maybe Nothing (`Map.lookup` splices) (e ^? annotation&sourceInfo&nodeSpan)) of 
+                              Just x -> f x
+                              Nothing -> pure e
+
+        splices = Map.fromList $ catMaybes $ map getSpliceInfo (rangeMod ^? biplateRef) 
+        getSpliceInfo :: Ann AST.Splice RangeInfo -> Maybe (SrcSpan, Ann AST.Splice RangeWithName)
+        getSpliceInfo n = (,) <$> ((n ^? AST.element&AST.spliceExpr&annotation&sourceInfo&nodeSpan)
+                                     `mplus` (n ^? annotation&sourceInfo&nodeSpan)) <*> pure (convertSplice n)
+
+        convertSplice :: Ann AST.Splice RangeInfo -> Ann AST.Splice RangeWithName
+        convertSplice = fmap (semanticInfo .= AST.NoSemanticInfo) 
 
         
 trfModuleHead :: TransformName n r => Maybe (Located ModuleName) -> Maybe (Located [LIE n]) -> Trf (AnnMaybe AST.ModuleHead r) 

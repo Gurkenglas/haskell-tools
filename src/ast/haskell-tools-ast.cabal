@@ -30,6 +30,7 @@ library
                    
                      , Language.Haskell.Tools.AST.Instances
                      , Language.Haskell.Tools.AST.Instances.Eq
+                     , Language.Haskell.Tools.AST.Instances.Functor
                      , Language.Haskell.Tools.AST.Instances.Show
                      , Language.Haskell.Tools.AST.Instances.Data
                      , Language.Haskell.Tools.AST.Instances.Generic

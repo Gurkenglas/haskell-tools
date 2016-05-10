@@ -49,7 +49,7 @@ data Type a
                  } -- ^ Type with explicit kind signature (@ _a :: * @)
   | TyPromoted   { _tpPromoted :: Promoted a
                  } -- A promoted data type with @-XDataKinds@ (@ '3 @).
-  | TySplice     { _tsSplice :: Splice a
+  | TySplice     { _tsSplice :: Ann Splice a
                  } -- ^ a Template Haskell splice type (@ $(genType) @).
   | TyQuasiQuote { _typeQQ :: QuasiQuote a
                  } -- ^ a Template Haskell quasi-quote type (@ [quoter| ... ] @).

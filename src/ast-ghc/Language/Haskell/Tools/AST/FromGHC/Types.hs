@@ -48,7 +48,7 @@ trfType' (HsOpTy t1 op t2) = AST.TyInfix <$> trfType t1 <*> trfOperator (snd op)
 trfType' (HsParTy typ) = AST.TyParen <$> trfType typ
 trfType' (HsKindSig typ kind) = AST.TyKinded <$> trfType typ <*> trfKind kind
 trfType' (HsQuasiQuoteTy qq) = AST.TyQuasiQuote <$> trfQuasiQuotation' qq
-trfType' (HsSpliceTy splice _) = AST.TySplice <$> trfSplice' splice
+trfType' (HsSpliceTy splice _) = AST.TySplice <$> annCont (trfSplice' splice)
 trfType' (HsBangTy _ typ) = AST.TyBang <$> trfType typ
 -- HsRecTy only appears as part of GADT constructor declarations, so it is omitted
 trfType' (HsTyLit (HsNumTy _ int)) = pure $ AST.TyNumLit int
